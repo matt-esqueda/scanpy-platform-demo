@@ -1,0 +1,35 @@
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9
+alembic==1.12.1
+
+# Task Queue
+celery==5.3.4
+redis==5.0.1
+
+# Utilities
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# Scientific Computing
+scanpy==1.9.6
+anndata==0.10.3
+celltypist==1.6.2
+numpy==1.24.3
+pandas==2.0.3
+matplotlib==3.7.2
+scipy==1.11.4
+seaborn==0.13.0
+
+# Development Tools
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
+ipython==8.17.2
