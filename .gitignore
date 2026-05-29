@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+*.env
+!.env.example
+
+# Database
+*.db
+*.sqlite3
+*.sql
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Data files
+data/jobs/*
+data/test_data/*.h5
+data/test_data/*.mtx
+data/test_data/*.tsv
+data/test_data/*.gz
+!data/jobs/.gitkeep
+!data/test_data/.gitkeep
+!data/references/.gitkeep
+
+# Logs
+*.log
+logs/
+celerybeat-schedule
+celerybeat.pid
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (future)
+node_modules/
+frontend/dist/
+frontend/build/
+.parcel-cache/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+docker-compose.override.yml
