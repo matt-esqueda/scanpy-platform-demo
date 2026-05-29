@@ -5,15 +5,17 @@ services:
     image: postgres:15-alpine
     container_name: scanpy-postgres
     environment:
-      POSTGRES_USER: scanpy_user
-      POSTGRES_PASSWORD: scanpy_pass
-      POSTGRES_DB: scanpy_db
+      # SECURITY NOTE: Development credentials only
+      # Override these in production using environment variables or .env file
+      POSTGRES_USER: ${POSTGRES_USER:-scanpy_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scanpy_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-scanpy_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scanpy_user -d scanpy_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scanpy_user} -d ${POSTGRES_DB:-scanpy_db}"]
       interval: 10s
       timeout: 5s
       retries: 5

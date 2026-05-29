@@ -114,3 +114,22 @@ docker-compose logs -f redis
 | Database | PostgreSQL |
 | Task queue | Redis |
 | Analysis | Scanpy |
+
+---
+
+## Security Notice
+
+**This is a development/demo configuration.**
+
+Default credentials are intentionally simple for ease of testing:
+- Database password: `scanpy_pass`
+- No authentication enabled
+
+**For production use:**
+1. Review `SECURITY.md` for hardening guidelines
+2. Change all default passwords
+3. Enable authentication
+4. Restrict network access
+5. Use HTTPS/TLS
+
+See `.env.example` for configuration options.
