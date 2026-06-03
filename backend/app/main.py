@@ -1,8 +1,34 @@
 """FastAPI application entry point"""
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import scanpy
+from app.api import scanpy, websocket
+
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown events.
+    """
+    # Startup: Start WebSocket Redis listener
+    from app.core.websocket import manager
+
+    # Create background task for Redis pub/sub listener
+    listener_task = asyncio.create_task(manager.listen_for_updates())
+
+    logger.info("WebSocket manager started")
+
+    yield
+
+    # Shutdown: Cancel listener and close Redis
+    listener_task.cancel()
+    await manager.close()
+
+    logger.info("Websocket manager stopped")
 
 # Create FastAPI app
 app = FastAPI(
@@ -24,6 +50,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(scanpy.router, prefix=settings.API_V1_PREFIX)
+app.include_router(websocket.router)
 
 
 # Health check endpoint

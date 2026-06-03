@@ -4,12 +4,15 @@ Scanpy analysis Celery tasks.
 import logging
 from pathlib import Path
 from uuid import UUID
+import redis
+import json
 
 from celery import Task
 from sqlalchemy.orm import Session
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
+from app.core.config import settings
 from app.models.scanpy import JobStatus
 from app.services.scanpy import ScanpyJobService, ScanpyPipeline, ScanpyPlotGenerator
 from app.schemas.scanpy import ScanpyParameters
@@ -24,6 +27,23 @@ PROGRESS_STEPS = [
     ("clustering", 70),
     ("annotation", 90),
 ]
+
+
+def publish_progress_update(job_id: str, status: str, progress: int, step: str):
+    """Publish job progress update to Redis for WebSocket broadcasting."""
+    try:
+        r = redis.from_url(settings.REDIS_URL)
+        message = json.dumps({
+            "status": status,
+            "progress_percent": progress,
+            "current_step": step,
+            "type": "update"
+        })
+        channel = f"job:{job_id}:progress"
+        r.publish(channel, message)
+        logger.debug(f"Published progress update for job {job_id}: {progress}%")
+    except Exception as e:
+        logger.error(f"Failed to publish progress update: {e}")
 
 
 class ScanpyTask(Task):
@@ -81,26 +101,31 @@ def run_scanpy_analysis(
         # Step 1: Load data
         logger.info(f"Job {job_id}: Loading data")
         service.update_progress(db, job_uuid, JobStatus.EXECUTING, 10, "loading")
+        publish_progress_update(job_id, "executing", 10, "loading")
         adata = pipeline.load_data(input_path, input_type)
         
         # Step 2: Quality control
         logger.info(f"Job {job_id}: Running QC")
         service.update_progress(db, job_uuid, JobStatus.EXECUTING, 30, "qc_filter")
+        publish_progress_update(job_id, "executing", 30, "qc_filter")
         adata, qc_stats = pipeline.quality_control(adata)
         
         # Step 3: Normalization
         logger.info(f"Job {job_id}: Normalizing")
         service.update_progress(db, job_uuid, JobStatus.EXECUTING, 50, "normalization")
+        publish_progress_update(job_id, "executing", 50, "normalization")
         adata = pipeline.normalize(adata)
         
         # Step 4: Clustering
         logger.info(f"Job {job_id}: Clustering")
         service.update_progress(db, job_uuid, JobStatus.EXECUTING, 70, "clustering")
+        publish_progress_update(job_id, "executing", 70, "clustering")
         adata = pipeline.cluster(adata)
         
         # Step 5: Annotation
         logger.info(f"Job {job_id}: Annotating")
         service.update_progress(db, job_uuid, JobStatus.EXECUTING, 90, "annotation")
+        publish_progress_update(job_id, "executing", 90, "annotation")
         adata = pipeline.annotate(adata)
         
         # Generate plots
@@ -149,6 +174,7 @@ def run_scanpy_analysis(
         
         # Mark job complete
         service.mark_complete(db, job_uuid, str(h5ad_path), final_stats)
+        publish_progress_update(job_id, "complete", 100, "complete")
         
         logger.info(f"Job {job_id}: Complete")
         return {
@@ -160,4 +186,5 @@ def run_scanpy_analysis(
     except Exception as e:
         logger.error(f"Job {job_id} failed: {str(e)}", exc_info=True)
         service.mark_failed(db, job_uuid, str(e))
+        publish_progress_update(job_id, "failed", 0, "failed")
         raise
