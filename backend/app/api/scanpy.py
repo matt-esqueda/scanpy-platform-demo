@@ -1,5 +1,6 @@
 """Scanpy analysis API endpoints"""
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pathlib import Path
 from typing import List, Optional
@@ -19,6 +20,7 @@ from app.schemas.scanpy import (
     PresetsListResponse,
     PARAMETER_PRESETS,
 )
+from app.services.scanpy import ScanpyFileService
 from app.core.config import settings
 
 router = APIRouter(prefix="/scanpy", tags=["scanpy"])
@@ -170,7 +172,7 @@ def delete_job(
     This will cascade delete:
     - Plot metadata
     - Cluster data
-    - Output files (TODO: implement file cleanup)
+    - Output files from filesystem
     """
     job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
     
@@ -180,13 +182,17 @@ def delete_job(
             detail=f"Job {job_id} not found"
         )
     
-    # TODO: Delete output files from filesystem
-    # import shutil
-    # if os.path.exists(job.output_dir):
-    #     shutil.rmtree(job.output_dir)
+    # Delete files from filesystem
+    file_deletion_success = ScanpyFileService.delete_job_files(job_id)
     
+    if not file_deletion_success:
+        logger.warning(f"Failed to delete files for job {job_id}, but continuing with DB deletion")
+    
+    # Delete from database (cascades to plots and clusters)
     db.delete(job)
     db.commit()
+    
+    logger.info(f"Deleted job {job_id}")
     
     return None
 
@@ -266,7 +272,7 @@ def list_presets() -> PresetsListResponse:
 
 
 # ============================================================================
-# Download Endpoints (Placeholder - will implement file serving later)
+# Download Endpoints
 # ============================================================================
 
 @router.get("/jobs/{job_id}/download/h5ad")
@@ -275,10 +281,41 @@ def download_h5ad(
     db: Session = Depends(get_db)
 ):
     """Download H5AD results file"""
-    # TODO: Implement in Step 4
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="File download not yet implemented"
+    # Verify job exists and is complete
+    job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+    
+    if job.status != JobStatus.COMPLETE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Job is not complete (status: {job.status.value})"
+        )
+    
+    # Get file path
+    h5ad_path = ScanpyFileService.get_h5ad_path(job_id)
+    
+    if not h5ad_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="H5AD file not found"
+        )
+    
+    # Validate path safety
+    if not ScanpyFileService.validate_path_safety(h5ad_path, settings.JOBS_DIR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    return FileResponse(
+        path=h5ad_path,
+        filename=f"scanpy_results_{job_id}.h5ad",
+        media_type="application/octet-stream"
     )
 
 
@@ -288,10 +325,41 @@ def download_clusters_csv(
     db: Session = Depends(get_db)
 ):
     """Download cluster assignments as CSV"""
-    # TODO: Implement in Step 4
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="File download not yet implemented"
+    # Verify job exists and is complete
+    job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+    
+    if job.status != JobStatus.COMPLETE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Job is not complete (status: {job.status.value})"
+        )
+    
+    # Get file path
+    csv_path = ScanpyFileService.get_clusters_csv_path(job_id)
+    
+    if not csv_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cluster CSV file not found"
+        )
+    
+    # Validate path safety
+    if not ScanpyFileService.validate_path_safety(csv_path, settings.JOBS_DIR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    return FileResponse(
+        path=csv_path,
+        filename=f"cluster_assignments_{job_id}.csv",
+        media_type="text/csv"
     )
 
 
@@ -301,8 +369,69 @@ def get_plot(
     db: Session = Depends(get_db)
 ):
     """Get plot image file"""
-    # TODO: Implement in Step 4
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Plot download not yet implemented"
+    # Get plot record
+    plot = db.query(ScanpyPlot).filter(ScanpyPlot.id == plot_id).first()
+    
+    if not plot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Plot {plot_id} not found"
+        )
+    
+    # Get file path
+    plot_path = ScanpyFileService.get_plot_path(plot.file_path)
+    
+    if not plot_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plot file not found on disk"
+        )
+    
+    # Validate path safety
+    if not ScanpyFileService.validate_path_safety(plot_path, settings.JOBS_DIR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied"
+        )
+    
+    return FileResponse(
+        path=plot_path,
+        media_type="image/png"
+    )
+
+
+@router.get("/jobs/{job_id}/download/archive")
+def download_results_archive(
+    job_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Download all results as ZIP archive"""
+    # Verify job exists and is complete
+    job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found"
+        )
+    
+    if job.status != JobStatus.COMPLETE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Job is not complete (status: {job.status.value})"
+        )
+    
+    # Create ZIP archive
+    zip_buffer = ScanpyFileService.create_results_zip(job_id)
+    
+    if not zip_buffer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No result files found"
+        )
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=scanpy_results_{job_id}.zip"}
     )

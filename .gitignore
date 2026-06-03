@@ -67,3 +67,5 @@ htmlcov/
 
 # Docker
 docker-compose.override.ymlbackend/cache/
+backend/test_downloads/
+data/test_data/
