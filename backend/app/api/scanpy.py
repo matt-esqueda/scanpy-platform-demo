@@ -1,8 +1,10 @@
 """Scanpy analysis API endpoints"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
+import logging
 
 from app.api.deps import get_db
 from app.models.scanpy import ScanpyJob, ScanpyPlot, ScanpyCluster, JobStatus
@@ -21,53 +23,83 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/scanpy", tags=["scanpy"])
 
+logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # Job Management Endpoints
 # ============================================================================
 
 @router.post("/jobs/submit", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
-def submit_job(
+async def submit_job(
     request: JobSubmitRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> JobResponse:
     """
-    Submit a new Scanpy analysis job
+    Submit a new Scanpy analysis job.
     
-    - **input_type**: "mtx" or "h5"
-    - **input_path**: Path to data files
-    - **preset**: "default", "stringent", or "custom"
-    - **parameters**: Required only if preset="custom"
+    Validates parameters, creates job record, and dispatches to Celery.
     """
-    # Determine parameters based on preset
-    if request.preset == "custom":
-        parameters = request.parameters.model_dump()
+    # Get parameters (from preset or custom)
+    if request.preset:
+        if request.preset not in PARAMETER_PRESETS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown preset: {request.preset}. Available: {list(PARAMETER_PRESETS.keys())}"
+            )
+        params = PARAMETER_PRESETS[request.preset]
+    elif request.parameters:
+        params = request.parameters
     else:
-        parameters = PARAMETER_PRESETS[request.preset].model_dump()
+        # Default preset
+        params = PARAMETER_PRESETS["default"]
     
-    # Generate output directory
-    import uuid
-    job_id = uuid.uuid4()
-    output_dir = str(settings.JOBS_DIR / str(job_id))
+    # Validate input path exists (basic check)
+    input_path = Path(request.input_path)
+    if not input_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Input path does not exist: {request.input_path}"
+        )
     
     # Create job record
+    from app.services.scanpy import ScanpyJobService
+    import uuid
+
+    # Generate UUID first
+    job_id = uuid.uuid4()
+
+    # Get output directory path
+    output_dir = str(ScanpyJobService.get_job_output_dir(job_id))
+
+    # Create job with all required fields
     job = ScanpyJob(
         id=job_id,
+        status=JobStatus.PENDING,
+        progress_percent=0,
+        current_step="pending",
         input_type=request.input_type,
         input_path=request.input_path,
         preset=request.preset,
-        parameters=parameters,
+        parameters=params.model_dump(),
         output_dir=output_dir,
-        status=JobStatus.PENDING,
-        progress_percent=0
     )
-    
+
     db.add(job)
     db.commit()
     db.refresh(job)
     
-    # TODO: Trigger Celery task here (Step 4)
-    # celery_task.delay(str(job.id))
+    # Dispatch Celery task
+    from app.tasks.scanpy_tasks import run_scanpy_analysis
+    
+    task = run_scanpy_analysis.delay(
+        job_id=str(job.id),
+        input_type=request.input_type,
+        input_path=request.input_path,
+        parameters_dict=params.model_dump(),
+    )
+    
+    logger.info(f"Submitted job {job.id} with task {task.id}")
     
     return job
 
