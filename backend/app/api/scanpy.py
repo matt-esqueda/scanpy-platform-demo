@@ -43,26 +43,25 @@ async def submit_job(
     Validates parameters, creates job record, and dispatches to Celery.
     """
     # Get parameters (from preset or custom)
-    if request.preset:
+    if request.preset and request.preset != 'custom':
         if request.preset not in PARAMETER_PRESETS:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Unknown preset: {request.preset}. Available: {list(PARAMETER_PRESETS.keys())}"
             )
         params = PARAMETER_PRESETS[request.preset]
-    elif request.parameters:
+    elif request.preset == 'custom' and request.parameters:
         params = request.parameters
     else:
-        # Default preset
+        # Fallback to default if no preset logic matches
         params = PARAMETER_PRESETS["default"]
     
-    # Validate input path exists (basic check)
-    input_path = Path(request.input_path)
-    if not input_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Input path does not exist: {request.input_path}"
-        )
+    #
+    # --- THE FIX ---
+    # The path existence check has been removed.
+    # The validation of the path's content will happen inside the Celery worker,
+    # which is the correct place for it in an async architecture.
+    #
     
     # Create job record
     from app.services.scanpy import ScanpyJobService

@@ -28,6 +28,7 @@ class ConnectionManager:
             self.active_connections[job_id] = set()
         
         self.active_connections[job_id].add(websocket)
+        print(f"🔌 WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
         logger.info(f"WebSocket connected for job {job_id}. Total connections: {len(self.active_connections[job_id])}")
     
     def disconnect(self, websocket: WebSocket, job_id: UUID):
@@ -39,11 +40,13 @@ class ConnectionManager:
             if not self.active_connections[job_id]:
                 del self.active_connections[job_id]
         
+        print(f"❌ WebSocket disconnected for job {job_id}")
         logger.info(f"WebSocket disconnected for job {job_id}")
     
     async def broadcast_to_job(self, job_id: UUID, message: dict):
         """Broadcast a message to all connections for a specific job."""
         if job_id not in self.active_connections:
+            print(f"📭 No active connections for job {job_id}")
             return
         
         # Convert message to JSON
@@ -51,11 +54,16 @@ class ConnectionManager:
         
         # Send to all connected clients for this job
         disconnected = set()
+        connection_count = len(self.active_connections[job_id])
+        
+        print(f"📡 Broadcasting to {connection_count} connections for job {job_id}")
         
         for connection in self.active_connections[job_id]:
             try:
                 await connection.send_text(json_message)
+                print(f"✅ Message sent to WebSocket connection")
             except Exception as e:
+                print(f"❌ Error sending to WebSocket: {e}")
                 logger.error(f"Error sending to websocket: {e}")
                 disconnected.add(connection)
         
@@ -76,30 +84,43 @@ class ConnectionManager:
     
     async def listen_for_updates(self):
         """Listen for job updates from Redis pub/sub and broadcast to WebSockets."""
-        redis = await self.setup_redis_pubsub()
-        pubsub = redis.pubsub()
-        
-        # Subscribe to all job update channels
-        await pubsub.psubscribe("job:*:progress")
-        
-        logger.info("WebSocket manager listening for Redis updates")
-        
-        async for message in pubsub.listen():
-            if message["type"] == "pmessage":
-                try:
-                    # Extract job_id from channel name: job:{job_id}:progress
-                    channel = message["channel"]
-                    job_id_str = channel.split(":")[1]
-                    job_id = UUID(job_id_str)
-                    
-                    # Parse update data
-                    data = json.loads(message["data"])
-                    
-                    # Broadcast to connected clients
-                    await self.broadcast_to_job(job_id, data)
-                    
-                except Exception as e:
-                    logger.error(f"Error processing Redis message: {e}")
+        try:
+            print("🔍 Setting up Redis pub/sub connection...")
+            redis = await self.setup_redis_pubsub()
+            pubsub = redis.pubsub()
+            
+            # Subscribe to all job update channels
+            await pubsub.psubscribe("job:*:progress")
+            print("✅ Subscribed to job:*:progress pattern")
+            
+            logger.info("WebSocket manager listening for Redis updates")
+            
+            async for message in pubsub.listen():
+                print(f"📨 Received Redis message: {message}")
+                
+                if message["type"] == "pmessage":
+                    try:
+                        # Extract job_id from channel name: job:{job_id}:progress
+                        channel = message["channel"]
+                        job_id_str = channel.split(":")[1]
+                        job_id = UUID(job_id_str)
+                        
+                        # Parse update data
+                        data = json.loads(message["data"])
+                        print(f"🎯 Broadcasting to job {job_id}: {data}")
+                        
+                        # Broadcast to connected clients
+                        await self.broadcast_to_job(job_id, data)
+                        
+                    except Exception as e:
+                        print(f"❌ Error processing Redis message: {e}")
+                        logger.error(f"Error processing Redis message: {e}")
+                        import traceback
+                        traceback.print_exc()
+        except Exception as e:
+            print(f"❌ FATAL: WebSocket manager listen_for_updates failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     async def close(self):
         """Close Redis connection."""

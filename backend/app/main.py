@@ -17,17 +17,21 @@ async def lifespan(app: FastAPI):
     # Startup: Start WebSocket Redis listener
     from app.core.websocket import manager
 
+    print("🚀 STARTING WebSocket manager Redis listener...")
+    
     # Create background task for Redis pub/sub listener
     listener_task = asyncio.create_task(manager.listen_for_updates())
-
+    
+    print("✅ WebSocket manager listener task created")
     logger.info("WebSocket manager started")
 
     yield
 
     # Shutdown: Cancel listener and close Redis
+    print("🛑 STOPPING WebSocket manager...")
     listener_task.cancel()
     await manager.close()
-
+    print("✅ WebSocket manager stopped")
     logger.info("Websocket manager stopped")
 
 # Create FastAPI app
@@ -36,7 +40,8 @@ app = FastAPI(
     version=settings.VERSION,
     description="Web-based single-cell RNA-seq analysis platform using Scanpy",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # CORS middleware (for frontend development)
