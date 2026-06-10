@@ -1,7 +1,7 @@
 """Scanpy analysis API endpoints"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pathlib import Path
 from typing import List, Optional
 from uuid import UUID
@@ -149,7 +149,10 @@ def get_job(
     
     Returns job status, progress, parameters, and results (if complete)
     """
-    job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
+    job = db.query(ScanpyJob).options(
+        joinedload(ScanpyJob.plots),
+        joinedload(ScanpyJob.clusters)
+    ).filter(ScanpyJob.id == job_id).first()
     
     if not job:
         raise HTTPException(
@@ -216,7 +219,10 @@ def get_results(
     - Cluster assignments
     - Download URLs
     """
-    job = db.query(ScanpyJob).filter(ScanpyJob.id == job_id).first()
+    job = db.query(ScanpyJob).options(
+        joinedload(ScanpyJob.plots),
+        joinedload(ScanpyJob.clusters)
+    ).filter(ScanpyJob.id == job_id).first()
     
     if not job:
         raise HTTPException(

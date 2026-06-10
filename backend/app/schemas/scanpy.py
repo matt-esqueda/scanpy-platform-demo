@@ -178,6 +178,10 @@ class JobResponse(BaseModel):
     # Error
     error_message: Optional[str] = None
     
+    # Relationships - ADDED THESE!
+    plots: List[PlotResponse] = Field(default_factory=list)
+    clusters: List[ClusterResponse] = Field(default_factory=list)
+    
     model_config = ConfigDict(from_attributes=True)
 
 

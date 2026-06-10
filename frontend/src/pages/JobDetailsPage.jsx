@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { jobsApi } from '../services/api';
+import PlotPreview from '../components/plots/PlotPreview';
 
 const JobDetailsPage = () => {
   const { jobId } = useParams();
@@ -55,6 +56,20 @@ const JobDetailsPage = () => {
     }
   }, [jobUpdate]);
 
+  useEffect(() => {
+  if (jobData) {
+    console.log('=== JOB DATA DEBUG ===');
+    console.log('Job status:', jobData.status);
+    console.log('Job plots:', jobData.plots);
+    console.log('Plots array length:', jobData.plots?.length);
+    if (jobData.plots) {
+      jobData.plots.forEach((plot, index) => {
+        console.log(`Plot ${index}:`, plot);
+      });
+    }
+  }
+}, [jobData]);
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleString();
@@ -70,9 +85,7 @@ const JobDetailsPage = () => {
     
     return (
       <span
-        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-          badges[jobData?.status] || 'bg-gray-100 text-gray-800'
-        }`}
+        className={`bio-status-badge ${badges[jobData?.status] || 'bg-slate-100 text-slate-800'}`}
       >
         {jobData?.status || 'unknown'}
       </span>
@@ -126,12 +139,12 @@ const JobDetailsPage = () => {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center space-x-3 mb-2">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-slate-900">
             Job {jobData.id.slice(0, 8)}...
           </h1>
           {getStatusBadge()}
         </div>
-        <p className="text-gray-600">
+        <p className="text-slate-600">
           Created: {formatDate(jobData.created_at)}
         </p>
       </div>
@@ -139,9 +152,9 @@ const JobDetailsPage = () => {
       {/* Status and Progress */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Progress</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Progress</h2>
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">WebSocket:</span>
+            <span className="text-sm text-slate-500">WebSocket:</span>
             <span className={`text-xs px-2 py-1 rounded ${isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
@@ -150,7 +163,7 @@ const JobDetailsPage = () => {
         
         {/* Progress Bar */}
         <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 mb-2">
+          <div className="flex justify-between text-sm text-slate-600 mb-2">
             <span>{jobData.current_step || 'Initializing...'}</span>
             <span>{jobData.progress_percent}%</span>
           </div>
@@ -169,14 +182,14 @@ const JobDetailsPage = () => {
         {/* Status Details */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Started:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-slate-500">Started:</span>
+            <span className="ml-2 font-medium text-slate-900">
               {formatDate(jobData.started_at)}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Completed:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-slate-500">Completed:</span>
+            <span className="ml-2 font-medium text-slate-900">
               {formatDate(jobData.completed_at)}
             </span>
           </div>
@@ -193,23 +206,23 @@ const JobDetailsPage = () => {
 
       {/* Configuration */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Configuration</h2>
+        <h2 className="text-xl font-semibold text-slate-900 mb-4">Configuration</h2>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Input Type:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-slate-500">Input Type:</span>
+            <span className="ml-2 font-medium text-slate-900">
               {jobData.input_type?.toUpperCase()}
             </span>
           </div>
           <div>
-            <span className="text-gray-500">Preset:</span>
-            <span className="ml-2 font-medium text-gray-900">
+            <span className="text-slate-500">Preset:</span>
+            <span className="ml-2 font-medium text-slate-900">
               {jobData.preset || 'Custom'}
             </span>
           </div>
           <div className="col-span-2">
-            <span className="text-gray-500">Input Path:</span>
-            <span className="ml-2 font-medium text-gray-900 font-mono text-xs">
+            <span className="text-slate-500">Input Path:</span>
+            <span className="ml-2 font-medium text-slate-900 font-mono text-xs">
               {jobData.input_path}
             </span>
           </div>
@@ -219,12 +232,29 @@ const JobDetailsPage = () => {
       {/* Results (only show if complete) */}
       {jobData.status === 'complete' && (
         <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Results</h2>
+          <h2 className="text-xl font-semibold text-slate-900 mb-4">Results</h2>
+          
+          {/* Plot Gallery */}
+          {jobData.plots && jobData.plots.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-slate-900 mb-3">Generated Plots</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {jobData.plots.map((plot) => (
+                  <PlotPreview
+                    key={plot.id}
+                    plotId={plot.id}
+                    plotType={plot.plot_type}
+                    thumbnailUrl={`http://localhost:8000/api/scanpy/plots/${plot.id}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           
           {/* Statistics */}
           {jobData.stats && (
             <div className="mb-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-3">Statistics</h3>
+              <h3 className="text-lg font-medium text-slate-900 mb-3">Statistics</h3>
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div className="text-center p-3 bg-blue-50 rounded">
                   <div className="text-2xl font-bold text-blue-600">
