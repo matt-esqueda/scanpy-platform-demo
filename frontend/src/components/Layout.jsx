@@ -1,17 +1,24 @@
 import Header from './layout/Header';
+import Sidebar from './layout/Sidebar';
 
 export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* New Professional Header */}
+      {/* Header */}
       <Header />
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 w-full">
-        {children}
-      </main>
+      {/* Main Content with Sidebar */}
+      <div className="flex-1 flex">
+        {/* Sidebar */}
+        <Sidebar />
+        
+        {/* Main Content Area */}
+        <main className="flex-1 py-6 px-6 overflow-auto">
+          {children}
+        </main>
+      </div>
 
-      {/* Updated Footer */}
+      {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-auto">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
