@@ -3,6 +3,7 @@ import { useParams, useLocation } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { jobsApi } from '../services/api';
 import PlotPreview from '../components/plots/PlotPreview';
+import PlotGallery from '../components/plots/PlotGallery';
 
 const JobDetailsPage = () => {
   const { jobId } = useParams();
@@ -306,21 +307,9 @@ const JobDetailsPage = () => {
           )}
 
           {/* Plot Gallery */}
-          {jobData.plots && jobData.plots.length > 0 && (
-            <div className="bio-card p-6">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Generated Plots</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {jobData.plots.map((plot) => (
-                  <PlotPreview
-                    key={plot.id}
-                    plotId={plot.id}
-                    plotType={plot.plot_type}
-                    thumbnailUrl={`http://localhost:8000/api/scanpy/plots/${plot.id}`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+                    {jobData.plots && jobData.plots.length > 0 && (
+                      <PlotGallery plots={jobData.plots} jobId={jobData.id} />
+                    )}
 
           {/* Download Section */}
           <div className="bio-card p-6">
