@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobsApi } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 export default function SubmitJobPage() {
   const [formData, setFormData] = useState({
@@ -10,6 +11,7 @@ export default function SubmitJobPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -23,12 +25,19 @@ export default function SubmitJobPage() {
       console.log('Submitting job. API result received:', response.data);
       console.log('Navigating to details page with job state...');
       
+      // Show success message
+      showSuccess('Analysis job submitted successfully!');
+      
       navigate(`/jobs/${response.data.id}`, {
         state: { job: response.data }
       });
     } catch (err) {
       console.error('Job submission failed:', err);
-      setError(err.response?.data?.detail || err.message || 'Failed to submit job');
+      
+      // Use enhanced error message
+      const errorMessage = err.userMessage || err.response?.data?.detail || err.message || 'Failed to submit job';
+      setError(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -43,9 +52,9 @@ export default function SubmitJobPage() {
   };
 
   return (
-    <div className="px-4 sm:px-0">
+    <div className="space-y-8">
       {/* Page Header */}
-      <div className="mb-8">
+      <div>
         <h1 className="text-3xl font-bold text-slate-900">New Scanpy Analysis</h1>
         <p className="mt-2 text-slate-600">
           Configure and submit a single-cell RNA-seq analysis job

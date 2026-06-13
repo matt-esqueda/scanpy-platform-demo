@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { jobsApi } from '../../services/api';
+import StatusIndicator from '../ui/StatusIndicator';
 
 const Sidebar = () => {
   const location = useLocation();
@@ -53,22 +54,21 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* System Status */}
+      {/* System Status - REPLACE THIS SECTION */}
       <div className="p-4 border-b border-slate-200">
         <h3 className="text-sm font-semibold text-slate-900 mb-3">System Status</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-600">Status</span>
-            <div className="flex items-center space-x-1">
-              <div className={`w-2 h-2 rounded-full ${systemStatus.online ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-              <span className={systemStatus.online ? 'text-green-700' : 'text-red-700'}>
-                {systemStatus.online ? 'Online' : 'Offline'}
-              </span>
-            </div>
-          </div>
+        <StatusIndicator />
+        
+        <div className="mt-3 space-y-2 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-slate-600">Active Jobs</span>
             <span className="font-medium text-slate-900">{systemStatus.activeJobs}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">Queue Status</span>
+            <span className="font-medium text-slate-900">
+              {systemStatus.online ? 'Processing' : 'Offline'}
+            </span>
           </div>
         </div>
       </div>

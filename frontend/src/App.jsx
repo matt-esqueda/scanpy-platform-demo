@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import Layout from './components/Layout';
 import JobsPage from './pages/JobsPage';
 import SubmitJobPage from './pages/SubmitJobPage';
@@ -7,14 +8,16 @@ import ResultsPage from './pages/ResultsPage';
 
 function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<JobsPage />} />
-        <Route path="/submit" element={<SubmitJobPage />} />
-        <Route path="/jobs/:jobId" element={<JobDetailsPage />} />
-        <Route path="/results" element={<ResultsPage />} />
-      </Routes>
-    </Layout>
+    <ErrorBoundary>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<JobsPage />} />
+          <Route path="/submit" element={<SubmitJobPage />} />
+          <Route path="/jobs/:jobId" element={<JobDetailsPage />} />
+          <Route path="/results" element={<ResultsPage />} />
+        </Routes>
+      </Layout>
+    </ErrorBoundary>
   );
 }
 
